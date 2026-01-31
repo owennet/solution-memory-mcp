@@ -8,10 +8,10 @@ from chromadb.utils import embedding_functions
 
 
 class ChromaStore:
-    """Chroma vector database for semantic similarity search."""
+    """Chroma vector database for semantic similarity search with lazy loading."""
 
     def __init__(self, persist_dir: str | Path, collection_name: str = "solution_embeddings"):
-        """Initialize Chroma store.
+        """Initialize Chroma store with lazy loading.
         
         Args:
             persist_dir: Directory for Chroma persistence
@@ -19,24 +19,41 @@ class ChromaStore:
         """
         self.persist_dir = Path(persist_dir)
         self.persist_dir.mkdir(parents=True, exist_ok=True)
+        self.collection_name = collection_name
         
+        # Lazy-loaded instances
+        self._client = None
+        self._embedding_fn = None
+        self._collection = None
+
+    def _ensure_initialized(self) -> None:
+        """Lazily initialize Chroma client and embedding function."""
+        if self._client is not None:
+            return
+            
         # Initialize Chroma client with persistence
-        self.client = chromadb.PersistentClient(
+        self._client = chromadb.PersistentClient(
             path=str(self.persist_dir),
             settings=Settings(anonymized_telemetry=False)
         )
         
         # Use sentence-transformers for embeddings
-        self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+        self._embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name="all-MiniLM-L6-v2"
         )
         
         # Get or create collection
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name,
-            embedding_function=self.embedding_fn,
+        self._collection = self._client.get_or_create_collection(
+            name=self.collection_name,
+            embedding_function=self._embedding_fn,
             metadata={"hnsw:space": "cosine"}
         )
+
+    @property
+    def collection(self):
+        """Get collection, initializing if needed."""
+        self._ensure_initialized()
+        return self._collection
 
     def add_solution(self, solution_id: str, problem: str, error_messages: list[str], title: str) -> None:
         """Add a solution to the vector store.

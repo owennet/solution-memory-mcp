@@ -18,10 +18,10 @@ def get_data_dir() -> Path:
     return Path(data_dir).expanduser()
 
 
-# Initialize storage
+# Initialize storage (ChromaStore uses lazy loading for embedding model)
 data_dir = get_data_dir()
 sqlite_store = SQLiteStore(data_dir / "solutions.db")
-chroma_store = ChromaStore(data_dir / "chroma")
+chroma_store = ChromaStore(data_dir / "chroma")  # Embedding model loads on first use
 search_engine = HybridSearchEngine(sqlite_store, chroma_store)
 
 # Create MCP server
